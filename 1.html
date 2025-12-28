@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>2026 Happy new year</title>
+    <title>2026 Happy Mew Year</title>
     <style>
         body {
             margin: 0;
@@ -164,7 +164,12 @@
         // Input state for tap detection
         let startPointer = new THREE.Vector2();
         let isDragging = false;
+        let lastTapTime = 0;
         
+        // Camera Restore State
+        let savedCameraPos = new THREE.Vector3(30, 15, 65); // Default start pos
+        let savedControlsTarget = new THREE.Vector3(0, 0, 0);
+
         // Managers
         const raycaster = new THREE.Raycaster();
         const pointer = new THREE.Vector2();
@@ -237,6 +242,7 @@
             // Improved Input Handling (Touch/Mouse)
             window.addEventListener('pointerdown', onPointerDown);
             window.addEventListener('pointerup', onPointerUp);
+            // double click fallback for desktop
             window.addEventListener('dblclick', toggleState);
 
             // Start Loading
@@ -744,7 +750,16 @@
             const dy = event.clientY - startPointer.y;
             // Treat as tap if movement is small (< 5px)
             if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
-                onTap(event);
+                const currentTime = Date.now();
+                if (currentTime - lastTapTime < 300) {
+                    // Double Tap Detected
+                    toggleState(event);
+                    lastTapTime = 0; // Prevent immediate re-trigger
+                } else {
+                    // Single Tap
+                    lastTapTime = currentTime;
+                    onTap(event);
+                }
             }
         }
 
@@ -777,6 +792,12 @@
         }
 
         function focusImage(mesh) {
+            if(controls.enabled) {
+                // Save state before disabling controls and moving
+                savedCameraPos.copy(camera.position);
+                savedControlsTarget.copy(controls.target);
+            }
+            
             controls.enabled = false;
             currentFocusedMesh = mesh;
             document.getElementById('focus-overlay').style.display = 'block';
@@ -819,8 +840,16 @@
                 currentFocusedMesh = null;
             }
 
+            // Restore Camera Position
+            new TWEEN.Tween(camera.position)
+                .to({ x: savedCameraPos.x, y: savedCameraPos.y, z: savedCameraPos.z }, 1000)
+                .easing(TWEEN.Easing.Cubic.InOut)
+                .start();
+
+            // Restore Controls Target
             new TWEEN.Tween(controls.target)
-                .to({ x: 0, y: 0, z: 0 }, 1000)
+                .to({ x: savedControlsTarget.x, y: savedControlsTarget.y, z: savedControlsTarget.z }, 1000)
+                .easing(TWEEN.Easing.Cubic.InOut)
                 .start();
         }
 
