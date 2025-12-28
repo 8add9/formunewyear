@@ -782,11 +782,6 @@
             const baseScale = shapeState === 'cake' ? maxScale : 0.01;
             const baseEasing = shapeState === 'cake' ? TWEEN.Easing.Back.Out : TWEEN.Easing.Back.In;
             
-            // Scale the whole group instead of just bases, but user asked for logic
-            // Actually, in initMainScene we scale mainGroup.
-            // If we want to hide cake shape, we should tween positions. 
-            // The previous logic tweened `cakeBases` scale.
-            
             // Fix: cakeBases are children of mainGroup. 
             // Since mainGroup is scaled up to 1.6, cakeBases should scale to 1 relative to parent.
             const targetBaseScale = shapeState === 'cake' ? 1 : 0.01;
@@ -936,7 +931,10 @@
 
             if(currentState === 'main') {
                 if(nebulaParticles) nebulaParticles.rotation.y = time * 0.03;
-                mainGroup.rotation.y = Math.sin(time * 0.1) * 0.05; 
+                
+                if(controls.enabled) {
+                    mainGroup.rotation.y += 0.002;
+                }
                 
                 if(shapeState === 'scatter') {
                     imageMeshes.forEach((mesh, i) => {
