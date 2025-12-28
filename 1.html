@@ -1,0 +1,957 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>2026 Golden Splendor</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #1a1205 0%, #000000 100%);
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #ffd700;
+        }
+
+        #container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Loading Screen */
+        #loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            transition: opacity 1s ease-out;
+        }
+
+        .loader-text {
+            font-size: 24px;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            color: #ffd700;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+
+        .progress-bar {
+            width: 200px;
+            height: 2px;
+            background: #333;
+            position: relative;
+        }
+
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background: #ffd700;
+            box-shadow: 0 0 10px #ffd700;
+            transition: width 0.2s;
+        }
+
+        /* Focus Overlay for Images */
+        #focus-overlay {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 11;
+            display: none;
+        }
+
+        .close-btn {
+            font-size: 30px;
+            color: white;
+            cursor: pointer;
+            text-shadow: 0 0 5px black;
+        }
+        
+        /* Message for user interaction */
+        #start-prompt {
+            position: absolute;
+            bottom: 20%;
+            width: 100%;
+            text-align: center;
+            color: #ffd700;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Configuration & App -->
+    <div id="loading-screen">
+        <div class="loader-text">Loading 2026 Golden Splendor</div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <div id="start-prompt">點擊任意處開始體驗</div>
+    </div>
+
+    <div id="container"></div>
+
+    <div id="focus-overlay">
+        <div class="close-btn" id="btn-close-focus">&times;</div>
+    </div>
+
+    <!-- Import Maps -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "@tweenjs/tween.js": "https://unpkg.com/@tweenjs/tween.js@23.1.1/dist/tween.esm.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+        import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+        import { MeshSurfaceSampler } from 'three/addons/math/MeshSurfaceSampler.js';
+        import TWEEN from '@tweenjs/tween.js';
+
+        // ==========================================
+        // CONFIGURATION
+        // ==========================================
+        const CONFIG = {
+            imageCount: 18, 
+            imagePrefix: './', // Explicit relative path
+            imageSuffix: '.jpg',
+            bloomStrength: 0.8, 
+            bloomThreshold: 0.2, 
+            bloomRadius: 0.3, 
+            particleCount: 20000, 
+            cakeRadius: 25,
+            scatterRadius: 80
+        };
+
+        // ==========================================
+        // GLOBALS
+        // ==========================================
+        const container = document.getElementById('container');
+        let scene, camera, renderer, composer, controls;
+        let font;
+        let loadedTextures = [];
+        let currentState = 'intro'; // intro, main
+        let shapeState = 'cake'; // cake, scatter
+        let particleTexture;
+        
+        // Managers
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+        let imageMeshes = [];
+        let instancedMeshes = []; 
+        let cakeBases = []; 
+        let introParticles;
+        let nebulaParticles;
+        let mainGroup = new THREE.Group(); 
+
+        // ==========================================
+        // INITIALIZATION
+        // ==========================================
+        async function init() {
+            // Scene Setup
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x050505, 0.005); 
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 100);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            // Ensure high DPI rendering for sharpness
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ReinhardToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            container.appendChild(renderer.domElement);
+
+            // Post Processing (Bloom)
+            const renderScene = new RenderPass(scene, camera);
+            const bloomPass = new UnrealBloomPass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                CONFIG.bloomStrength,
+                CONFIG.bloomRadius,
+                CONFIG.bloomThreshold
+            );
+            
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enablePan = false;
+            controls.minDistance = 10;
+            controls.maxDistance = 200;
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0x404040, 1.0); 
+            scene.add(ambientLight);
+
+            const pointLight = new THREE.PointLight(0xffaa00, 2, 300);
+            pointLight.position.set(30, 50, 50);
+            scene.add(pointLight);
+
+            const fillLight = new THREE.PointLight(0xffffff, 1, 300);
+            fillLight.position.set(-30, 20, -30);
+            scene.add(fillLight);
+            
+            // Generate Particle Texture
+            particleTexture = createParticleTexture();
+
+            // Event Listeners
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('pointerdown', onPointerDown);
+            window.addEventListener('pointermove', onPointerMove);
+            window.addEventListener('dblclick', toggleState);
+
+            // Start Loading
+            await loadAssets();
+        }
+
+        function createParticleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            
+            // Sharper, brighter core for "glitter" effect
+            const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            grad.addColorStop(0.2, 'rgba(255, 240, 150, 0.8)');
+            grad.addColorStop(0.5, 'rgba(200, 150, 50, 0.2)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 64, 64);
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            return tex;
+        }
+
+        // ==========================================
+        // ASSET LOADING
+        // ==========================================
+        function updateProgress(percent) {
+            document.getElementById('progress-fill').style.width = percent + '%';
+        }
+
+        async function loadAssets() {
+            const manager = new THREE.LoadingManager();
+            const textureLoader = new THREE.TextureLoader(manager);
+            const fontLoader = new FontLoader(manager);
+
+            manager.onProgress = (url, itemsLoaded, itemsTotal) => {
+                updateProgress((itemsLoaded / itemsTotal) * 100);
+            };
+
+            // 1. Load Font
+            const fontPromise = new Promise((resolve, reject) => {
+                fontLoader.load('https://unpkg.com/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json', 
+                    (f) => { font = f; resolve(); },
+                    undefined,
+                    (e) => reject(e)
+                );
+            });
+
+            // 2. Load Images with Fallback
+            const texturePromises = [];
+            for (let i = 1; i <= CONFIG.imageCount; i++) {
+                // Ensure no spaces or hidden characters in prefix
+                const url = `${CONFIG.imagePrefix}${i}${CONFIG.imageSuffix}`; 
+                const p = new Promise((resolve) => {
+                    textureLoader.load(url, 
+                        (tex) => { 
+                            tex.colorSpace = THREE.SRGBColorSpace;
+                            resolve(tex); 
+                        },
+                        undefined,
+                        () => {
+                            console.warn(`Failed to load ${url}, employing fallback.`);
+                            // Elegant Fallback Texture
+                            const canvas = document.createElement('canvas');
+                            canvas.width = 512; canvas.height = 512;
+                            const ctx = canvas.getContext('2d');
+                            // Dark background
+                            ctx.fillStyle = '#111'; 
+                            ctx.fillRect(0,0,512,512);
+                            // Gold Border
+                            ctx.strokeStyle = '#DAA520';
+                            ctx.lineWidth = 40;
+                            ctx.strokeRect(20,20,472,472);
+                            ctx.strokeStyle = '#FFF';
+                            ctx.lineWidth = 5;
+                            ctx.strokeRect(50,50,412,412);
+                            
+                            ctx.fillStyle = '#DAA520';
+                            ctx.font = 'bold 80px Arial';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText("IMG", 256, 200);
+                            ctx.font = 'bold 180px Arial';
+                            ctx.fillText(i.toString(), 256, 320);
+                            
+                            const fallbackTex = new THREE.CanvasTexture(canvas);
+                            fallbackTex.colorSpace = THREE.SRGBColorSpace;
+                            resolve(fallbackTex);
+                        }
+                    );
+                });
+                texturePromises.push(p);
+            }
+
+            try {
+                await fontPromise;
+                loadedTextures = await Promise.all(texturePromises);
+                
+                const startPrompt = document.getElementById('start-prompt');
+                startPrompt.style.opacity = 1;
+                
+                const startApp = () => {
+                    window.removeEventListener('click', startApp);
+                    document.getElementById('loading-screen').style.opacity = 0;
+                    setTimeout(() => {
+                        document.getElementById('loading-screen').style.display = 'none';
+                        startIntro();
+                    }, 1000);
+                };
+                window.addEventListener('click', startApp);
+
+            } catch (error) {
+                console.error("Asset load failed", error);
+                alert("Failed to load resources. Check console.");
+            }
+        }
+
+        // ==========================================
+        // STAGE 1: INTRO (Particles)
+        // ==========================================
+        function createTextParticles(text) {
+            // Responsive Size Calculation
+            const isMobile = window.innerWidth < 768;
+            let fontSize = 25;
+            
+            // If text is long (like "2026"), shrink it on mobile
+            if (isMobile && text.length > 2) {
+                fontSize = 12; // Much smaller for "2026"
+            } else if (isMobile) {
+                fontSize = 20; // Slightly smaller for single digits
+            }
+
+            const geometry = new TextGeometry(text, {
+                font: font,
+                size: fontSize, 
+                height: 2, // Thicker text for volume
+                curveSegments: 12, 
+                bevelEnabled: true,
+                bevelThickness: 1,
+                bevelSize: 0.5,
+                bevelSegments: 5
+            });
+            geometry.center();
+
+            const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial());
+            const sampler = new MeshSurfaceSampler(mesh).build();
+            
+            const count = CONFIG.particleCount;
+            const targetPositions = [];
+            const tempVec = new THREE.Vector3();
+
+            for(let i=0; i<count; i++) {
+                sampler.sample(tempVec);
+                targetPositions.push(tempVec.x, tempVec.y, tempVec.z);
+            }
+            
+            return targetPositions;
+        }
+
+        function startIntro() {
+            // Setup particle system
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(CONFIG.particleCount * 3);
+            const colors = new Float32Array(CONFIG.particleCount * 3);
+            const sizes = new Float32Array(CONFIG.particleCount);
+            
+            for(let i=0; i<CONFIG.particleCount; i++) {
+                const i3 = i*3;
+                positions[i3] = (Math.random() - 0.5) * 300;
+                positions[i3+1] = (Math.random() - 0.5) * 200;
+                positions[i3+2] = (Math.random() - 0.5) * 200;
+                
+                // Pure Gold & White Palette
+                const isWhite = Math.random() > 0.7;
+                if(isWhite) {
+                    colors[i3] = 1.0;
+                    colors[i3+1] = 1.0;
+                    colors[i3+2] = 1.0;
+                } else {
+                    colors[i3] = 1.0;
+                    colors[i3+1] = 0.85; // Gold
+                    colors[i3+2] = 0.4;
+                }
+                
+                sizes[i] = Math.random() * 0.8 + 0.2; // Smaller base size for sharpness
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+            const material = new THREE.PointsMaterial({
+                map: particleTexture,
+                color: 0xffffff,
+                transparent: true,
+                opacity: 1.0,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                vertexColors: true,
+                sizeAttenuation: true,
+                size: 0.8 // Global scaler
+            });
+
+            introParticles = new THREE.Points(geometry, material);
+            scene.add(introParticles);
+
+            const sequence = ['5', '4', '3', '2', '1', '2026'];
+            let step = 0;
+
+            const runStep = () => {
+                if(step >= sequence.length) {
+                    transitionToMain();
+                    return;
+                }
+
+                const text = sequence[step];
+                const targets = createTextParticles(text);
+                const positions = introParticles.geometry.attributes.position.array;
+                const sizes = introParticles.geometry.attributes.size.array;
+                
+                new TWEEN.Tween({ t: 0 })
+                    .to({ t: 1 }, 700)
+                    .easing(TWEEN.Easing.Cubic.Out)
+                    .onUpdate((obj) => {
+                        for(let i = 0; i < CONFIG.particleCount; i++) {
+                            const i3 = i * 3;
+                            const ti = (i * 3) % targets.length;
+                            
+                            positions[i3] += (targets[ti] - positions[i3]) * 0.15;
+                            positions[i3+1] += (targets[ti+1] - positions[i3+1]) * 0.15;
+                            positions[i3+2] += (targets[ti+2] - positions[i3+2]) * 0.15;
+                            
+                            // Twinkle
+                            if(Math.random() > 0.95) {
+                                sizes[i] = Math.random() * 1.5 + 0.5;
+                            } else {
+                                sizes[i] *= 0.95;
+                                if(sizes[i] < 0.2) sizes[i] = 0.2;
+                            }
+                        }
+                        introParticles.geometry.attributes.position.needsUpdate = true;
+                        introParticles.geometry.attributes.size.needsUpdate = true;
+                    })
+                    .onComplete(() => {
+                         setTimeout(() => {
+                             step++;
+                             runStep();
+                         }, step === sequence.length - 1 ? 1500 : 500); 
+                    })
+                    .start();
+            };
+
+            runStep();
+        }
+
+        function transitionToMain() {
+            // Explode particles
+            initMainScene();
+            
+            // Determine final scale based on screen size (Make it BIG)
+            const isMobile = window.innerWidth < 768;
+            const finalScale = isMobile ? 1.3 : 1.6;
+
+            mainGroup.scale.set(0.01, 0.01, 0.01);
+            mainGroup.visible = true;
+
+            new TWEEN.Tween({ scale: 0.01, opacity: 1 })
+                .to({ scale: finalScale, opacity: 0 }, 2000)
+                .easing(TWEEN.Easing.Exponential.Out)
+                .onUpdate((obj) => {
+                    introParticles.material.opacity = obj.opacity;
+                    mainGroup.scale.set(obj.scale, obj.scale, obj.scale);
+                })
+                .onComplete(() => {
+                    scene.remove(introParticles);
+                })
+                .start();
+            
+            // Move camera closer for more impact (z=80 -> z=65)
+            new TWEEN.Tween(camera.position)
+                .to({ x: 30, y: 15, z: 65 }, 2500)
+                .easing(TWEEN.Easing.Cubic.Out)
+                .start();
+        }
+
+        // ==========================================
+        // STAGE 3 & 4: MAIN SCENE (Cake & Images)
+        // ==========================================
+        function initMainScene() {
+            currentState = 'main';
+            scene.add(mainGroup);
+            
+            // 0. Solid Cake Base
+            createCakeBase();
+
+            // 1. Instanced Meshes (Elegant Lights)
+            createInstancedObjects();
+            
+            // 2. Images
+            createImages();
+
+            // 3. Text
+            createMainTitle();
+
+            // 4. Ambient Dust
+            createDust();
+        }
+
+        function createCakeBase() {
+            // Dark Gold Metal
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: 0x4a3c1b, 
+                roughness: 0.3, 
+                metalness: 0.8 
+            });
+
+            const defs = [
+                { r: 16, h: 7, y: -6 },
+                { r: 12, h: 7, y: 1 },
+                { r: 8, h: 7, y: 8 }
+            ];
+
+            defs.forEach(def => {
+                const geo = new THREE.CylinderGeometry(def.r * 0.9, def.r, def.h, 64);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(0, def.y, 0);
+                mainGroup.add(mesh);
+                cakeBases.push(mesh);
+            });
+        }
+
+        function getScatterPosition() {
+            const vec = new THREE.Vector3();
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const r = 40 + Math.random() * CONFIG.scatterRadius;
+            vec.x = r * Math.sin(phi) * Math.cos(theta);
+            vec.y = r * Math.sin(phi) * Math.sin(theta);
+            vec.z = r * Math.cos(phi);
+            return vec;
+        }
+
+        function createInstancedObjects() {
+            // Smaller spheres for refinement
+            const geoSphere = new THREE.SphereGeometry(0.25, 16, 16);
+
+            // Elegant Palette: Champagne, Warm White, Ruby
+            const matChampagne = new THREE.MeshStandardMaterial({ 
+                color: 0xffeebb, 
+                emissive: 0xffcc88, 
+                emissiveIntensity: 0.4, 
+                roughness: 0.2,
+                metalness: 0.8
+            });
+            const matWhite = new THREE.MeshStandardMaterial({ 
+                color: 0xffffff, 
+                emissive: 0xffffff, 
+                emissiveIntensity: 0.3, 
+                roughness: 0.1,
+                metalness: 0.5
+            });
+            const matRuby = new THREE.MeshStandardMaterial({ 
+                color: 0x880000, 
+                emissive: 0x550000, 
+                emissiveIntensity: 0.2, 
+                roughness: 0.1,
+                metalness: 0.7
+            });
+            const matGold = new THREE.MeshStandardMaterial({ 
+                color: 0xffd700, 
+                emissive: 0xffaa00, 
+                emissiveIntensity: 0.3, 
+                roughness: 0.1,
+                metalness: 1.0
+            });
+
+            // Total count ~ 3000 lights
+            const meshDefs = [
+                { geo: geoSphere, mat: matChampagne, count: 1200 },
+                { geo: geoSphere, mat: matWhite, count: 800 },
+                { geo: geoSphere, mat: matRuby, count: 400 },
+                { geo: geoSphere, mat: matGold, count: 800 }
+            ];
+
+            const dummy = new THREE.Object3D();
+
+            meshDefs.forEach((def, typeIdx) => {
+                const mesh = new THREE.InstancedMesh(def.geo, def.mat, def.count);
+                const cakePositions = [];
+                const scatterPositions = [];
+                
+                for(let i=0; i<def.count; i++) {
+                    const sPos = getScatterPosition();
+                    scatterPositions.push(sPos.x, sPos.y, sPos.z);
+
+                    // Distribution
+                    const tier = i % 3;
+                    const tierYCenter = (tier * 7) - 6; 
+                    const tierRBase = 16 - (tier * 4); 
+                    
+                    const angle = Math.random() * Math.PI * 2;
+                    const hVar = (Math.random() - 0.5) * 6.5; 
+                    const cy = tierYCenter + hVar;
+                    
+                    // Stick out slightly from base
+                    const r = tierRBase + 0.1 + Math.random() * 0.8; 
+                    
+                    const cx = Math.cos(angle) * r;
+                    const cz = Math.sin(angle) * r;
+
+                    cakePositions.push(cx, cy, cz);
+                    
+                    dummy.position.set(cx, cy, cz);
+                    const scale = 0.8 + Math.random() * 0.8;
+                    dummy.scale.setScalar(scale);
+                    dummy.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, 0);
+                    dummy.updateMatrix();
+                    mesh.setMatrixAt(i, dummy.matrix);
+                }
+
+                mesh.instanceMatrix.needsUpdate = true;
+                mainGroup.add(mesh);
+                
+                instancedMeshes.push({
+                    mesh: mesh,
+                    count: def.count,
+                    cakeData: cakePositions,
+                    scatterData: scatterPositions,
+                    currentData: [...cakePositions]
+                });
+            });
+        }
+
+        function createImages() {
+            // Larger Images
+            const planeGeo = new THREE.PlaneGeometry(5, 3.75);
+            const frameGeo = new THREE.BoxGeometry(5.2, 3.95, 0.1);
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.1, metalness: 1.0 });
+
+            loadedTextures.forEach((tex, i) => {
+                tex.minFilter = THREE.LinearFilter;
+                tex.magFilter = THREE.LinearFilter;
+                tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+                const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+                const mesh = new THREE.Mesh(planeGeo, mat);
+                
+                const frame = new THREE.Mesh(frameGeo, frameMat);
+                frame.position.z = -0.1;
+                mesh.add(frame);
+
+                mesh.userData = { 
+                    id: i, 
+                    isImage: true,
+                    originalPos: new THREE.Vector3(),
+                    originalRot: new THREE.Euler()
+                };
+
+                const angle = (i / CONFIG.imageCount) * Math.PI * 2;
+                // Increased radius to 30 to prevent overlap with lights (radius ~17)
+                const radius = 30; 
+                const y = (i / CONFIG.imageCount) * 24 - 10; 
+                
+                mesh.position.set(Math.cos(angle)*radius, y, Math.sin(angle)*radius);
+                mesh.lookAt(0, y, 0); 
+                
+                mesh.userData.cakePos = mesh.position.clone();
+                mesh.userData.cakeRot = mesh.rotation.clone();
+
+                const sPos = getScatterPosition();
+                mesh.userData.scatterPos = sPos;
+                mesh.userData.scatterRot = new THREE.Euler(Math.random()*Math.PI, Math.random()*Math.PI, 0);
+
+                mainGroup.add(mesh);
+                imageMeshes.push(mesh);
+            });
+        }
+
+        function createMainTitle() {
+            const width = 2048;
+            const height = 512;
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.shadowColor = '#ffaa00';
+            ctx.shadowBlur = 20; 
+            ctx.fillStyle = '#fff6cc'; 
+            
+            ctx.font = 'bold 160px "Microsoft YaHei", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText("2026 黃金盛典", width/2, height/2);
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.minFilter = THREE.LinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+
+            const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending });
+            const sprite = new THREE.Sprite(mat);
+            
+            sprite.scale.set(40, 10, 1);
+            sprite.position.set(0, 24, 0); 
+            mainGroup.add(sprite);
+        }
+
+        function createDust() {
+            const geo = new THREE.BufferGeometry();
+            const pos = [];
+            const sizes = [];
+            for(let i=0; i<1500; i++) {
+                pos.push((Math.random()-0.5)*200, (Math.random()-0.5)*200, (Math.random()-0.5)*200);
+                sizes.push(Math.random() * 1.5);
+            }
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            geo.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+            
+            const mat = new THREE.PointsMaterial({ 
+                map: particleTexture,
+                color: 0xffd700, 
+                size: 1.0, 
+                transparent: true, 
+                opacity: 0.6,
+                blending: THREE.AdditiveBlending,
+                sizeAttenuation: true,
+                depthWrite: false
+            });
+            nebulaParticles = new THREE.Points(geo, mat);
+            scene.add(nebulaParticles);
+        }
+
+        // ==========================================
+        // STATE MANAGEMENT
+        // ==========================================
+        function toggleState(e) {
+            if(currentState !== 'main') return;
+            
+            shapeState = shapeState === 'cake' ? 'scatter' : 'cake';
+            
+            // Toggle Cake Base
+            const isMobile = window.innerWidth < 768;
+            const maxScale = isMobile ? 1.3 : 1.6;
+
+            const baseScale = shapeState === 'cake' ? maxScale : 0.01;
+            const baseEasing = shapeState === 'cake' ? TWEEN.Easing.Back.Out : TWEEN.Easing.Back.In;
+            
+            // Scale the whole group instead of just bases, but user asked for logic
+            // Actually, in initMainScene we scale mainGroup.
+            // If we want to hide cake shape, we should tween positions. 
+            // The previous logic tweened `cakeBases` scale.
+            
+            // Fix: cakeBases are children of mainGroup. 
+            // Since mainGroup is scaled up to 1.6, cakeBases should scale to 1 relative to parent.
+            const targetBaseScale = shapeState === 'cake' ? 1 : 0.01;
+            
+            cakeBases.forEach(mesh => {
+                new TWEEN.Tween(mesh.scale)
+                    .to({ x: targetBaseScale, y: targetBaseScale, z: targetBaseScale }, 1000)
+                    .easing(baseEasing)
+                    .start();
+            });
+
+            // Tween Images
+            imageMeshes.forEach(mesh => {
+                const targetPos = shapeState === 'cake' ? mesh.userData.cakePos : mesh.userData.scatterPos;
+                const targetRot = shapeState === 'cake' ? mesh.userData.cakeRot : mesh.userData.scatterRot;
+
+                new TWEEN.Tween(mesh.position).to({ x:targetPos.x, y:targetPos.y, z:targetPos.z }, 1500)
+                    .easing(TWEEN.Easing.Cubic.InOut).start();
+                    
+                new TWEEN.Tween(mesh.rotation).to({ x:targetRot.x, y:targetRot.y, z:targetRot.z }, 1500)
+                    .easing(TWEEN.Easing.Cubic.InOut).start();
+            });
+
+            // Tween Instanced Meshes
+            const targetT = shapeState === 'cake' ? 0 : 1; 
+            
+            new TWEEN.Tween({ t: shapeState === 'cake' ? 1 : 0 })
+                .to({ t: targetT }, 2000)
+                .easing(TWEEN.Easing.Elastic.Out)
+                .onUpdate((obj) => {
+                    updateInstancedPositions(obj.t);
+                })
+                .start();
+        }
+
+        function updateInstancedPositions(t) {
+            const dummy = new THREE.Object3D();
+            
+            instancedMeshes.forEach(data => {
+                const { mesh, count, cakeData, scatterData } = data;
+                
+                for(let i=0; i<count; i++) {
+                    const i3 = i*3;
+                    
+                    const cx = cakeData[i3];
+                    const cy = cakeData[i3+1];
+                    const cz = cakeData[i3+2];
+                    
+                    const sx = scatterData[i3];
+                    const sy = scatterData[i3+1];
+                    const sz = scatterData[i3+2];
+
+                    dummy.position.set(
+                        cx + (sx - cx) * t,
+                        cy + (sy - cy) * t,
+                        cz + (sz - cz) * t
+                    );
+
+                    dummy.rotation.set(t*Math.PI*2, t*Math.PI, 0);
+                    // Scatter effect
+                    dummy.scale.setScalar(1.0 - t * 0.4); 
+                    
+                    dummy.updateMatrix();
+                    mesh.setMatrixAt(i, dummy.matrix);
+                }
+                mesh.instanceMatrix.needsUpdate = true;
+            });
+        }
+
+        // ==========================================
+        // INTERACTION
+        // ==========================================
+        function onPointerMove(event) {
+            pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+            pointer.y = - (event.clientY / window.innerHeight) * 2 + 1;
+        }
+
+        function onPointerDown(event) {
+            if(currentState !== 'main') return;
+
+            raycaster.setFromCamera(pointer, scene.camera);
+            const intersects = raycaster.intersectObjects(imageMeshes);
+
+            if (intersects.length > 0) {
+                const target = intersects[0].object;
+                focusImage(target);
+            } else {
+                if(controls.enabled === false) { 
+                    resetView();
+                }
+            }
+        }
+
+        function focusImage(mesh) {
+            controls.enabled = false;
+            document.getElementById('focus-overlay').style.display = 'block';
+
+            const worldPos = new THREE.Vector3();
+            mesh.getWorldPosition(worldPos);
+            
+            const offset = new THREE.Vector3(0, 0, 8);
+            const worldRot = new THREE.Quaternion();
+            mesh.getWorldQuaternion(worldRot);
+            offset.applyQuaternion(worldRot);
+            
+            const targetPos = worldPos.clone().add(offset);
+
+            new TWEEN.Tween(camera.position)
+                .to({ x: targetPos.x, y: targetPos.y, z: targetPos.z }, 1000)
+                .easing(TWEEN.Easing.Quadratic.Out)
+                .start();
+                
+            new TWEEN.Tween(controls.target)
+                .to({ x: worldPos.x, y: worldPos.y, z: worldPos.z }, 1000)
+                .easing(TWEEN.Easing.Quadratic.Out)
+                .start();
+        }
+
+        function resetView() {
+            document.getElementById('focus-overlay').style.display = 'none';
+            controls.enabled = true;
+            
+            new TWEEN.Tween(controls.target)
+                .to({ x: 0, y: 0, z: 0 }, 1000)
+                .start();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        document.getElementById('btn-close-focus').addEventListener('click', resetView);
+
+        // Loop
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const time = clock.getElapsedTime();
+
+            TWEEN.update();
+            controls.update();
+
+            if(currentState === 'main') {
+                if(nebulaParticles) nebulaParticles.rotation.y = time * 0.03;
+                mainGroup.rotation.y = Math.sin(time * 0.1) * 0.05; 
+                
+                if(shapeState === 'scatter') {
+                    imageMeshes.forEach((mesh, i) => {
+                         mesh.position.y += Math.sin(time + i) * 0.02;
+                    });
+                }
+            }
+
+            composer.render();
+        }
+
+        init().then(() => {
+            animate();
+        });
+
+    </script>
+</body>
+</html>
