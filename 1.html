@@ -141,8 +141,8 @@
             imageCount: 18, 
             imagePrefix: '', 
             imageSuffix: '.jpg',
-            bloomStrength: 0.8, // Slightly stronger intensity
-            bloomThreshold: 0.6, // Higher threshold: Only bright lights/emissive objects glow, photos won't glow
+            bloomStrength: 0.8, 
+            bloomThreshold: 1.0, // Set to 1.0 so normal images (max 1.0) don't bloom, but emissive objects (>1.0) do.
             bloomRadius: 0.3, 
             particleCount: 20000, 
             cakeRadius: 25,
@@ -197,7 +197,7 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.toneMapping = THREE.ReinhardToneMapping;
-            renderer.toneMappingExposure = 1.2;
+            renderer.toneMappingExposure = 1.0; // Reset exposure to 1.0 to keep colors natural
             container.appendChild(renderer.domElement);
 
             // Post Processing (Bloom)
@@ -222,7 +222,7 @@
             controls.maxDistance = 200;
 
             // Lights
-            const ambientLight = new THREE.AmbientLight(0x404040, 1.5); // Increased ambient for StandardMaterial visibility
+            const ambientLight = new THREE.AmbientLight(0x404040, 1.5); 
             scene.add(ambientLight);
 
             const pointLight = new THREE.PointLight(0xffaa00, 2, 300);
@@ -541,12 +541,11 @@
 
         function createInstancedObjects() {
             const geoSphere = new THREE.SphereGeometry(0.25, 16, 16);
-            // Increased emissive intensity to compensate for higher bloom threshold (0.6)
-            // This ensures "jewels" still glow while photos do not.
-            const matChampagne = new THREE.MeshStandardMaterial({ color: 0xffeebb, emissive: 0xffcc88, emissiveIntensity: 1.5, roughness: 0.2, metalness: 0.8 });
-            const matWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.5, roughness: 0.1, metalness: 0.5 });
-            const matRuby = new THREE.MeshStandardMaterial({ color: 0x880000, emissive: 0x550000, emissiveIntensity: 2.0, roughness: 0.1, metalness: 0.7 });
-            const matGold = new THREE.MeshStandardMaterial({ color: 0xffd700, emissive: 0xffaa00, emissiveIntensity: 1.5, roughness: 0.1, metalness: 1.0 });
+            // Significantly increased emissive intensity to surpass the high bloom threshold (1.0)
+            const matChampagne = new THREE.MeshStandardMaterial({ color: 0xffeebb, emissive: 0xffcc88, emissiveIntensity: 3.0, roughness: 0.2, metalness: 0.8 });
+            const matWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 3.0, roughness: 0.1, metalness: 0.5 });
+            const matRuby = new THREE.MeshStandardMaterial({ color: 0x880000, emissive: 0x550000, emissiveIntensity: 4.0, roughness: 0.1, metalness: 0.7 });
+            const matGold = new THREE.MeshStandardMaterial({ color: 0xffd700, emissive: 0xffaa00, emissiveIntensity: 3.5, roughness: 0.1, metalness: 1.0 });
 
             const meshDefs = [
                 { geo: geoSphere, mat: matChampagne, count: 1200 },
@@ -599,14 +598,10 @@
                 tex.magFilter = THREE.LinearFilter;
                 tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-                // Changed from MeshBasicMaterial to MeshStandardMaterial.
-                // This makes the image react to light naturally (matte finish) instead of "glowing" (unlit).
-                // roughness 0.4 gives a nice semi-gloss photo paper look.
-                const mat = new THREE.MeshStandardMaterial({ 
+                // Reverted to MeshBasicMaterial to ensure photos are fully bright and unaffected by lighting
+                const mat = new THREE.MeshBasicMaterial({ 
                     map: tex, 
-                    side: THREE.DoubleSide,
-                    roughness: 0.4,
-                    metalness: 0.0
+                    side: THREE.DoubleSide
                 });
                 
                 const mesh = new THREE.Mesh(planeGeo, mat);
@@ -653,7 +648,7 @@
             ctx.font = 'bold 160px "Microsoft YaHei", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText("2026 黃金盛典", width/2, height/2);
+            ctx.fillText("2026 新年快樂", width/2, height/2);
             
             const tex = new THREE.CanvasTexture(canvas);
             tex.colorSpace = THREE.SRGBColorSpace;
