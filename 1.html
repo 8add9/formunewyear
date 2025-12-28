@@ -11,7 +11,7 @@
             background: radial-gradient(circle at center, #1a1205 0%, #000000 100%);
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             color: #ffd700;
-            touch-action: none; /* Prevent default touch actions */
+            touch-action: none;
         }
 
         #container {
@@ -37,7 +37,7 @@
             align-items: center;
             z-index: 999;
             transition: opacity 1s ease-out;
-            cursor: pointer; /* Indicates clickability */
+            cursor: pointer;
             touch-action: manipulation;
         }
 
@@ -67,7 +67,6 @@
             transition: width 0.2s;
         }
 
-        /* Focus Overlay for Images */
         #focus-overlay {
             position: absolute;
             top: 20px;
@@ -148,29 +147,23 @@
             scatterRadius: 80
         };
 
-        // ==========================================
-        // GLOBALS
-        // ==========================================
         const container = document.getElementById('container');
         let scene, camera, renderer, composer, controls;
         let font;
         let loadedTextures = [];
-        let currentState = 'intro'; // intro, main
-        let shapeState = 'cake'; // cake, scatter
+        let currentState = 'intro'; 
+        let shapeState = 'cake'; 
         let particleTexture;
         let currentFocusedMesh = null;
         let bgMusic;
         
-        // Input state for tap detection
         let startPointer = new THREE.Vector2();
         let isDragging = false;
         let lastTapTime = 0;
         
-        // Camera Restore State
-        let savedCameraPos = new THREE.Vector3(30, 15, 65); // Default start pos
+        let savedCameraPos = new THREE.Vector3(30, 15, 65);
         let savedControlsTarget = new THREE.Vector3(0, 0, 0);
 
-        // Managers
         const raycaster = new THREE.Raycaster();
         const pointer = new THREE.Vector2();
         let imageMeshes = [];
@@ -180,19 +173,12 @@
         let nebulaParticles;
         let mainGroup = new THREE.Group(); 
 
-        // ==========================================
-        // INITIALIZATION
-        // ==========================================
         async function init() {
-            // Scene Setup
             scene = new THREE.Scene();
             scene.fog = new THREE.FogExp2(0x050505, 0.005); 
 
-            // Camera
             camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 0, 100);
-
-            // Renderer
             renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -200,7 +186,6 @@
             renderer.toneMappingExposure = 1.0; 
             container.appendChild(renderer.domElement);
 
-            // Post Processing (Bloom)
             const renderScene = new RenderPass(scene, camera);
             const bloomPass = new UnrealBloomPass(
                 new THREE.Vector2(window.innerWidth, window.innerHeight),
@@ -213,7 +198,6 @@
             composer.addPass(renderScene);
             composer.addPass(bloomPass);
 
-            // Controls
             controls = new OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
@@ -221,7 +205,6 @@
             controls.minDistance = 10;
             controls.maxDistance = 200;
 
-            // Lights
             const ambientLight = new THREE.AmbientLight(0x404040, 1.5); 
             scene.add(ambientLight);
 
@@ -233,23 +216,19 @@
             fillLight.position.set(-30, 20, -30);
             scene.add(fillLight);
             
-            // Audio Setup
             bgMusic = new Audio('1.mp3');
             bgMusic.loop = true;
             bgMusic.volume = 0.5;
 
-            // Generate Particle Texture
             particleTexture = createParticleTexture();
 
-            // Event Listeners
             window.addEventListener('resize', onWindowResize);
             
-            // Input Handling
             window.addEventListener('pointerdown', onPointerDown);
             window.addEventListener('pointerup', onPointerUp);
             window.addEventListener('dblclick', toggleState);
 
-            // Start Loading
+        
             await loadAssets();
         }
 
@@ -270,9 +249,6 @@
             return tex;
         }
 
-        // ==========================================
-        // ASSET LOADING
-        // ==========================================
         function updateProgress(percent) {
             document.getElementById('progress-fill').style.width = percent + '%';
         }
@@ -306,7 +282,6 @@
                         },
                         undefined,
                         () => {
-                            // Fallback
                             const canvas = document.createElement('canvas');
                             canvas.width = 512; canvas.height = 512;
                             const ctx = canvas.getContext('2d');
@@ -344,11 +319,10 @@
                 const loadingScreen = document.getElementById('loading-screen');
                 
                 const startApp = (e) => {
-                    // Use pointerup/click to start
+                    
                     e.preventDefault();
                     loadingScreen.removeEventListener('pointerup', startApp);
-                    
-                    // Start Music
+             
                     bgMusic.play().catch(err => console.log('Autoplay blocked:', err));
 
                     loadingScreen.style.opacity = 0;
@@ -358,7 +332,7 @@
                     }, 1000);
                 };
                 
-                // Add listener to the specific element, better for mobile
+             
                 loadingScreen.addEventListener('pointerup', startApp);
 
             } catch (error) {
@@ -366,9 +340,7 @@
             }
         }
 
-        // ==========================================
-        // STAGE 1: INTRO (Particles)
-        // ==========================================
+
         function createTextParticles(text) {
             const isMobile = window.innerWidth < 768;
             let fontSize = 25;
@@ -548,7 +520,6 @@
 
         function createInstancedObjects() {
             const geoSphere = new THREE.SphereGeometry(0.25, 16, 16);
-            // Significantly increased emissive intensity to surpass the high bloom threshold (1.0)
             const matChampagne = new THREE.MeshStandardMaterial({ color: 0xffeebb, emissive: 0xffcc88, emissiveIntensity: 3.0, roughness: 0.2, metalness: 0.8 });
             const matWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 3.0, roughness: 0.1, metalness: 0.5 });
             const matRuby = new THREE.MeshStandardMaterial({ color: 0x880000, emissive: 0x550000, emissiveIntensity: 4.0, roughness: 0.1, metalness: 0.7 });
@@ -605,7 +576,6 @@
                 tex.magFilter = THREE.LinearFilter;
                 tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-                // Reverted to MeshBasicMaterial to ensure photos are fully bright and unaffected by lighting
                 const mat = new THREE.MeshBasicMaterial({ 
                     map: tex, 
                     side: THREE.DoubleSide
@@ -635,7 +605,6 @@
                 mesh.userData.cakeRot = mesh.rotation.clone();
                 
                 const sPos = getScatterPosition();
-                // Push images further out (1.5x) so they are easier to find
                 sPos.multiplyScalar(1.5);
                 
                 mesh.userData.scatterPos = sPos;
@@ -724,7 +693,6 @@
                     .easing(TWEEN.Easing.Cubic.InOut).start();
                 new TWEEN.Tween(mesh.rotation).to({ x:targetRot.x, y:targetRot.y, z:targetRot.z }, 1500)
                     .easing(TWEEN.Easing.Cubic.InOut).start();
-                // Scale Tween: 1.0 for Cake, 6.0 for Scatter
                 new TWEEN.Tween(mesh.scale).to({ x: targetImageScale, y: targetImageScale, z: targetImageScale }, 1500)
                     .easing(TWEEN.Easing.Cubic.InOut).start();
             });
@@ -758,9 +726,6 @@
             });
         }
 
-        // ==========================================
-        // INPUT HANDLING
-        // ==========================================
         function onPointerDown(event) {
             isDragging = false;
             startPointer.x = event.clientX;
@@ -774,11 +739,11 @@
             if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
                 const currentTime = Date.now();
                 if (currentTime - lastTapTime < 300) {
-                    // Double Tap Detected
+
                     toggleState(event);
-                    lastTapTime = 0; // Prevent immediate re-trigger
+                    lastTapTime = 0; 
                 } else {
-                    // Single Tap
+                    
                     lastTapTime = currentTime;
                     onTap(event);
                 }
@@ -788,16 +753,15 @@
         function onTap(event) {
             if(currentState !== 'main') return;
 
-            // Recalculate pointer based on exact tap location
             pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
             pointer.y = - (event.clientY / window.innerHeight) * 2 + 1;
 
             raycaster.setFromCamera(pointer, camera);
-            // Recursive must be true to hit frames/children
+
             const intersects = raycaster.intersectObjects(imageMeshes, true);
 
             if (intersects.length > 0) {
-                // Traverse up to find the actual image mesh
+
                 let target = intersects[0].object;
                 while(target.parent && target.parent !== mainGroup && !target.userData.isImage) {
                     target = target.parent;
@@ -815,7 +779,6 @@
 
         function focusImage(mesh) {
             if(controls.enabled) {
-                // Save state before disabling controls and moving
                 savedCameraPos.copy(camera.position);
                 savedControlsTarget.copy(controls.target);
             }
@@ -854,7 +817,6 @@
             document.getElementById('focus-overlay').style.display = 'none';
             controls.enabled = true;
             
-            // Determine scale to return to based on current shape state
             const targetScale = shapeState === 'cake' ? 1.0 : 6.0;
 
             if(currentFocusedMesh) {
@@ -865,7 +827,6 @@
                 currentFocusedMesh = null;
             }
 
-            // Restore Camera Position
             new TWEEN.Tween(camera.position)
                 .to({ x: savedCameraPos.x, y: savedCameraPos.y, z: savedCameraPos.z }, 1000)
                 .easing(TWEEN.Easing.Cubic.InOut)
@@ -917,4 +878,5 @@
     </script>
 </body>
 </html>
+
 
