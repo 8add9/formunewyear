@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>2026 Golden Splendor</title>
+    <title>2026 Happy new year</title>
     <style>
         body {
             margin: 0;
@@ -79,7 +79,6 @@
             text-shadow: 0 0 5px black;
         }
         
-        /* Message for user interaction */
         #start-prompt {
             position: absolute;
             bottom: 20%;
@@ -96,13 +95,12 @@
 </head>
 <body>
 
-    <!-- Configuration & App -->
     <div id="loading-screen">
-        <div class="loader-text">Loading 2026 Golden Splendor</div>
+        <div class="loader-text">Loading 2026 New Year</div>
         <div class="progress-bar">
             <div class="progress-fill" id="progress-fill"></div>
         </div>
-        <div id="start-prompt">點擊任意處開始體驗</div>
+        <div id="start-prompt">點一下開始</div>
     </div>
 
     <div id="container"></div>
@@ -110,8 +108,6 @@
     <div id="focus-overlay">
         <div class="close-btn" id="btn-close-focus">&times;</div>
     </div>
-
-    <!-- Import Maps -->
     <script type="importmap">
         {
             "imports": {
@@ -138,7 +134,7 @@
         // ==========================================
         const CONFIG = {
             imageCount: 18, 
-            imagePrefix: './', // Explicit relative path
+            imagePrefix: '', // Empty string works best for relative paths in most local servers
             imageSuffix: '.jpg',
             bloomStrength: 0.8, 
             bloomThreshold: 0.2, 
@@ -158,6 +154,7 @@
         let currentState = 'intro'; // intro, main
         let shapeState = 'cake'; // cake, scatter
         let particleTexture;
+        let currentFocusedMesh = null;
         
         // Managers
         const raycaster = new THREE.Raycaster();
@@ -267,6 +264,7 @@
         async function loadAssets() {
             const manager = new THREE.LoadingManager();
             const textureLoader = new THREE.TextureLoader(manager);
+            textureLoader.setCrossOrigin('anonymous'); // Important for CORS issues
             const fontLoader = new FontLoader(manager);
 
             manager.onProgress = (url, itemsLoaded, itemsTotal) => {
@@ -519,26 +517,13 @@
                 .start();
         }
 
-        // ==========================================
-        // STAGE 3 & 4: MAIN SCENE (Cake & Images)
-        // ==========================================
         function initMainScene() {
             currentState = 'main';
             scene.add(mainGroup);
-            
-            // 0. Solid Cake Base
             createCakeBase();
-
-            // 1. Instanced Meshes (Elegant Lights)
             createInstancedObjects();
-            
-            // 2. Images
             createImages();
-
-            // 3. Text
             createMainTitle();
-
-            // 4. Ambient Dust
             createDust();
         }
 
@@ -577,10 +562,8 @@
         }
 
         function createInstancedObjects() {
-            // Smaller spheres for refinement
             const geoSphere = new THREE.SphereGeometry(0.25, 16, 16);
 
-            // Elegant Palette: Champagne, Warm White, Ruby
             const matChampagne = new THREE.MeshStandardMaterial({ 
                 color: 0xffeebb, 
                 emissive: 0xffcc88, 
@@ -610,7 +593,6 @@
                 metalness: 1.0
             });
 
-            // Total count ~ 3000 lights
             const meshDefs = [
                 { geo: geoSphere, mat: matChampagne, count: 1200 },
                 { geo: geoSphere, mat: matWhite, count: 800 },
@@ -877,12 +859,20 @@
 
         function focusImage(mesh) {
             controls.enabled = false;
+            currentFocusedMesh = mesh;
             document.getElementById('focus-overlay').style.display = 'block';
+
+            // Scale Up Image
+            new TWEEN.Tween(mesh.scale)
+                .to({ x: 2.0, y: 2.0, z: 2.0 }, 1000)
+                .easing(TWEEN.Easing.Cubic.Out)
+                .start();
 
             const worldPos = new THREE.Vector3();
             mesh.getWorldPosition(worldPos);
             
-            const offset = new THREE.Vector3(0, 0, 8);
+            // Adjust offset to accommodate larger scale
+            const offset = new THREE.Vector3(0, 0, 12);
             const worldRot = new THREE.Quaternion();
             mesh.getWorldQuaternion(worldRot);
             offset.applyQuaternion(worldRot);
@@ -904,6 +894,15 @@
             document.getElementById('focus-overlay').style.display = 'none';
             controls.enabled = true;
             
+            // Reset Scale
+            if(currentFocusedMesh) {
+                new TWEEN.Tween(currentFocusedMesh.scale)
+                .to({ x: 1, y: 1, z: 1 }, 1000)
+                .easing(TWEEN.Easing.Cubic.Out)
+                .start();
+                currentFocusedMesh = null;
+            }
+
             new TWEEN.Tween(controls.target)
                 .to({ x: 0, y: 0, z: 0 }, 1000)
                 .start();
@@ -933,7 +932,7 @@
                 if(nebulaParticles) nebulaParticles.rotation.y = time * 0.03;
                 
                 if(controls.enabled) {
-                    mainGroup.rotation.y += 0.002;
+                    mainGroup.rotation.y += 0.0005;
                 }
                 
                 if(shapeState === 'scatter') {
