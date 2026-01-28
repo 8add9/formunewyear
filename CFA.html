@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CFA倒數計時</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Noto+Sans+TC:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #000000;
+            color: #ff0000;
+            font-family: 'Noto Sans TC', sans-serif;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .crisis-container {
+            border: 2px solid #ff0000;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+            background: rgba(20, 0, 0, 0.9);
+            padding: 2rem;
+            border-radius: 10px;
+            text-align: center;
+            position: relative;
+            z-index: 10;
+        }
+
+        .pulse-text {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { text-shadow: 0 0 5px #ff0000; opacity: 1; }
+            50% { text-shadow: 0 0 20px #ff0000; opacity: 0.8; }
+            100% { text-shadow: 0 0 5px #ff0000; opacity: 1; }
+        }
+
+        .countdown-item {
+            font-family: 'Black Ops One', cursive;
+            font-size: 3rem;
+            line-height: 1;
+        }
+
+        .label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #888;
+        }
+
+        /* Footer 樣式 */
+        .footer-credit {
+            position: absolute;
+            bottom: 15px;
+            width: 100%;
+            text-align: center;
+            color: #550000; 
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: 'Black Ops One', cursive; 
+            opacity: 0.8;
+            z-index: 1;
+        }
+
+        @media (max-width: 576px) {
+            .countdown-item {
+                font-size: 2rem;
+            }
+            .crisis-container {
+                width: 90%;
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container d-flex justify-content-center">
+        <div class="crisis-container pulse-text">
+            <h1 class="mb-4 text-uppercase fw-bold" style="letter-spacing: 3px;">
+                ⚠️ 距離CFA ⚠️
+            </h1>
+            <h4 class="mb-4 text-light">2026年8月20日</h4>
+            
+            <div class="row g-2 justify-content-center" id="countdown">
+                <div class="col-3 col-md-auto px-md-4 border-end border-danger border-opacity-50">
+                    <div class="countdown-item" id="days">00</div>
+                    <div class="label">天 (Days)</div>
+                </div>
+                <div class="col-3 col-md-auto px-md-4 border-end border-danger border-opacity-50">
+                    <div class="countdown-item" id="hours">00</div>
+                    <div class="label">時 (Hrs)</div>
+                </div>
+                <div class="col-3 col-md-auto px-md-4 border-end border-danger border-opacity-50">
+                    <div class="countdown-item" id="minutes">00</div>
+                    <div class="label">分 (Min)</div>
+                </div>
+                <div class="col-3 col-md-auto px-md-4">
+                    <div class="countdown-item text-danger" id="seconds">00</div>
+                    <div class="label">秒 (Sec)</div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <div class="progress" style="height: 5px; background-color: #330000;">
+                    <div class="progress-bar bg-danger progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                </div>
+                <p class="mt-2 small text-muted">Chester叫你去讀書!!!</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-credit">CC BY Chester</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // 設定目標日期：2026年8月20日 00:00:00
+        const targetDate = new Date('2026-08-20T00:00:00').getTime();
+
+        function updateCountdown() {
+            const now = new Date().getTime();
+            const distance = targetDate - now;
+
+            if (distance < 0) {
+                document.getElementById("countdown").innerHTML = "<div class='col-12 display-4'>TIME IS UP</div>";
+                return;
+            }
+
+            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+            document.getElementById("days").innerText = days.toString().padStart(2, '0');
+            document.getElementById("hours").innerText = hours.toString().padStart(2, '0');
+            document.getElementById("minutes").innerText = minutes.toString().padStart(2, '0');
+            document.getElementById("seconds").innerText = seconds.toString().padStart(2, '0');
+        }
+
+        setInterval(updateCountdown, 1000);
+        updateCountdown(); 
+    </script>
+</body>
+</html>
